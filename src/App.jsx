@@ -84,7 +84,7 @@ export default function App() {
   const [voiceOn, setVoiceOn] = useState(true)
   const [fromSuggestions, setFromSuggestions] = useState([])
   const [toSuggestions, setToSuggestions] = useState([])
-  const [darkMode, setDarkMode] = useState(true)
+  const [darkMode, setDarkMode] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -101,6 +101,8 @@ useEffect(() => {
       ? 'https://tiles.openfreemap.org/styles/dark'
       : 'https://tiles.openfreemap.org/styles/liberty'
   )
+
+
 
   map.once('styledata', () => {
     if (darkMode) {
@@ -204,7 +206,7 @@ useEffect(() => {
   useEffect(() => {
     const map = new maplibregl.Map({
       container: 'map',
-      style: 'https://tiles.openfreemap.org/styles/dark',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
       center: [13.4050, 52.5200],
       zoom: 11,
       pitch: 0,
@@ -225,6 +227,8 @@ useEffect(() => {
         () => console.log('Location access denied')
       )
 
+      addCustomLayers(map, false)
+
       // Text colors
       const textLayers = [
         'highway_name_other', 'highway_name_motorway', 'place_other',
@@ -237,7 +241,24 @@ useEffect(() => {
       })
       try { map.setPaintProperty('water_name', 'text-color', '#4fc3f7') } catch (_) {}
 
+
+  function addCustomLayers(map, darkMode) {
+    if (darkMode) {
+      const textLayers = [
+        'highway_name_other', 'highway_name_motorway', 'place_other',
+        'place_suburb', 'place_village', 'place_town', 'place_city',
+        'place_city_large', 'place_state', 'place_country_other',
+        'place_country_minor', 'place_country_major'
+      ]
+      textLayers.forEach(i => {
+        try { map.setPaintProperty(i, "text-color", "#ffffff") } catch (_) {}
+      })
+    }
+  }  
+  
+
       // 3D Buildings
+     try { 
       map.addLayer({
         id: '3d-buildings',
         source: 'openmaptiles',
@@ -245,14 +266,16 @@ useEffect(() => {
         type: 'fill-extrusion',
         minzoom: 0,
         paint: {
-          'fill-extrusion-color': '#0d2137',
+          'fill-extrusion-color': darkMode ? '#0d2137': "#ffffff",
           'fill-extrusion-height': ['get', 'render_height'],
           'fill-extrusion-base': ['get', 'render_min_height'],
           'fill-extrusion-opacity': 0.9
         }
       })
+    } catch (_) {} 
 
       // Traffic
+    try {  
       map.addSource('tomtom-traffic', {
         type: 'vector',
         tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.pbf?key=9TbI9IRXkgysw41l3XfrCucB6yjGEvyV`],
@@ -278,8 +301,10 @@ useEffect(() => {
           ]
         }
       }, 'highway_name_other')
+    } catch (_) {}  
 
       // Route layers (empty at start, filled when route is calculated)
+    try {  
       map.addSource('route', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
@@ -292,7 +317,8 @@ useEffect(() => {
         id: 'route-line', type: 'line', source: 'route',
         paint: { 'line-color': '#4f8ef7', 'line-width': 6, 'line-opacity': 0.95 }
       })
-
+    } catch (_) {}  
+   
       // Click to set from/to point
       map.on('click', (e) => {
         const mode = clickModeRef.current
