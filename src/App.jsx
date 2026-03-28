@@ -84,10 +84,120 @@ export default function App() {
   const [voiceOn, setVoiceOn] = useState(true)
   const [fromSuggestions, setFromSuggestions] = useState([])
   const [toSuggestions, setToSuggestions] = useState([])
+  const [darkMode, setDarkMode] = useState(true)
   const [activeStep, setActiveStep] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // keep ref in sync so map click handler can always read latest value
   useEffect(() => { clickModeRef.current = clickMode }, [clickMode])
+
+  // Dark Mode Switch
+useEffect(() => {
+  const map = mapInstanceRef.current
+  if (!map) return
+  
+  map.setStyle(
+    darkMode
+      ? 'https://tiles.openfreemap.org/styles/dark'
+      : 'https://tiles.openfreemap.org/styles/liberty'
+  )
+
+  map.once('styledata', () => {
+    if (darkMode) {
+      const textLayers = [
+        'highway_name_other', 'highway_name_motorway', 'place_other',
+        'place_suburb', 'place_village', 'place_town', 'place_city',
+        'place_city_large', 'place_state', 'place_country_other',
+        'place_country_minor', 'place_country_major'
+      ]
+      textLayers.forEach(l => {
+        try { map.setPaintProperty(l, 'text-color', '#ffffff') } catch (_) {}
+      })
+    }
+    
+    try {
+      map.addLayer({
+        id: '3d-buildings',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        minzoom: 0,
+        paint: {
+          'fill-extrusion-color': darkMode ? '#0d2137' : '#c8d4e8',
+          'fill-extrusion-height': ['get', 'render_height'],
+          'fill-extrusion-base': ['get', 'render_min_height'],
+          'fill-extrusion-opacity': 0.9
+        }
+      })
+    } catch (_) {}
+
+    try {
+      map.addSource('tomtom-traffic', {
+        type: 'vector',
+        tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.pbf?key=9TbI9IRXkgysw41l3XfrCucB6yjGEvyV`],
+        maxzoom: 14
+      })
+      map.addLayer({
+        id: 'traffic-flow',
+        type: 'line',
+        source: 'tomtom-traffic',
+        'source-layer': 'Traffic flow',
+        minzoom: 8,
+        paint: {
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 13, 3, 16, 5],
+          'line-color': [
+            'case',
+            ['==', ['get', 'road_closure'], true], '#ff00ff',
+            ['!', ['has', 'traffic_level']], '#333333',
+            ['<=', ['get', 'traffic_level'], 0.15], '#00ff88',
+            ['<=', ['get', 'traffic_level'], 0.3], '#a8ff00',
+            ['<=', ['get', 'traffic_level'], 0.6], '#ffcc00',
+            ['<=', ['get', 'traffic_level'], 0.8], '#ff6600',
+            '#33d6ff'
+          ]
+        }
+      }, 'highway_name_other')
+    } catch (_) {}
+
+    try {
+  map.addLayer({
+    id: 'poi-labels',
+    source: 'openmaptiles',
+    'source-layer': 'poi',
+    type: 'symbol',
+    minzoom: 14,
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-size': 11,
+      'text-offset': [0, 1],
+      'icon-image': ['get', 'class'],
+      'text-anchor': 'top'
+    },
+    paint: {
+      'text-color': darkMode ? '#ffffff' : '#333333',
+      'text-halo-color': darkMode ? '#000000' : '#ffffff',
+      'text-halo-width': 1
+    }
+  })
+} catch (_) {}
+
+    try {
+      map.addSource('route', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      })
+      map.addLayer({
+        id: 'route-outline', type: 'line', source: 'route',
+        paint: { 'line-color': '#000', 'line-width': 10, 'line-opacity': 0.4 }
+      })
+      map.addLayer({
+        id: 'route-line', type: 'line', source: 'route',
+        paint: { 'line-color': '#4f8ef7', 'line-width': 6, 'line-opacity': 0.95 }
+      })
+    } catch (_) {}
+  })
+}, [darkMode])
+
 
   // ── Map init ──────────────────────────────────────────────────────────────
 
@@ -363,6 +473,10 @@ export default function App() {
   return (
     <>
       <div id="map" style={{ width: '100dvw', height: '100dvh' }} />
+      
+      <button className="hamburger-btn" onClick={() => setMenuOpen(m => !m)}>
+        {menuOpen ? '✕' : '☰'}
+          </button>
 
       {/* Nav Panel */}
       <div className={`nav-panel ${panelOpen ? 'open' : ''}`}>
@@ -456,12 +570,54 @@ export default function App() {
         )}
       </div>
 
+
+      {/* Hamburger Menu Button */}
+<button className="hamburger-btn" onClick={() => setMenuOpen(m => !m)}>
+  {menuOpen ? '✕' : '☰'}
+</button>
+
+{/* Dropdown Menu */}
+{menuOpen && (
+  <div className="dropdown-menu">
+    <button className="menu-item" onClick={() => { setPanelOpen(true); setMenuOpen(false) }}>
+      🧭 Navigate
+    </button>
+    <button className="menu-item" onClick={() => setDarkMode(d => !d)}>
+      {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+    </button>
+    <div className="menu-divider" />
+    <div className="menu-label">Traffic Colors</div>
+    <div className="legend">
+      <div className="legend-item"><span className="legend-dot" style={{background:'#00ff88'}}/>Free</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ffcc00'}}/>Slow</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff6600'}}/>Heavy</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff3366'}}/>Jam</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff00ff'}}/>Closed</div>
+    </div>
+  </div>
+)}  
+
+
       {/* Open panel button (shown when panel is closed) */}
-      {!panelOpen && (
-        <button className="open-panel-btn" onClick={() => setPanelOpen(true)}>
-          🧭 Navigate
-        </button>
-      )}
+      {menuOpen && (
+  <div className="dropdown-menu">
+    <button className="menu-item" onClick={() => { setPanelOpen(true); setMenuOpen(false) }}>
+      🧭 Navigate
+    </button>
+    <button className="menu-item" onClick={() => setDarkMode(d => !d)}>
+      {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+    </button>
+    <div className="menu-divider" />
+    <div className="menu-label">Traffic Colors</div>
+    <div className="legend">
+      <div className="legend-item"><span className="legend-dot" style={{background:'#00ff88'}}/>Free</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ffcc00'}}/>Slow</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff6600'}}/>Heavy</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff3366'}}/>Jam</div>
+      <div className="legend-item"><span className="legend-dot" style={{background:'#ff00ff'}}/>Closed</div>
+    </div>
+  </div>
+)}
 
       {/* Click mode hint at the bottom */}
       {clickMode && (
